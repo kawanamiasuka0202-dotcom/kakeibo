@@ -1,0 +1,47 @@
+{
+  "name": "家計簿",
+  "short_name": "家計簿",
+  "description": "夫婦でも個人でも使える、シンプルな家計簿アプリ。今いくら使っていて、あといくら使えるかがすぐ分かります。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f6f4",
+  "theme_color": "#2f7d6f",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "支出を登録",
+      "short_name": "登録",
+      "url": "/expenses/new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "家計簿を見る",
+      "short_name": "家計簿",
+      "url": "/expenses"
+    }
+  ]
+}
