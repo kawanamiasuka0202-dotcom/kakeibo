@@ -391,15 +391,50 @@ describe('予算のレベル判定', () => {
 });
 
 describe('全体予算の取り出し', () => {
+  const budgets = [
+    budget({ amountYen: 200000 }),
+    budget({ scope: 'personal', userId: ME, amountYen: 40000 }),
+    budget({ scope: 'personal', userId: PARTNER, amountYen: 35000 }),
+    budget({ scope: 'household', categoryId: food.id, amountYen: 60000 }),
+  ];
+
   it('世帯予算と個人予算を区別する', () => {
-    const budgets = [
-      budget({ amountYen: 200000 }),
-      budget({ scope: 'personal', userId: ME, amountYen: 40000 }),
-      budget({ scope: 'personal', userId: PARTNER, amountYen: 35000 }),
-      budget({ scope: 'household', categoryId: food.id, amountYen: 60000 }),
-    ];
     expect(findTotalBudget(budgets, AUGUST, 'all')?.amountYen).toBe(200000);
     expect(findTotalBudget(budgets, AUGUST, 'me', ME, PARTNER)?.amountYen).toBe(40000);
     expect(findTotalBudget(budgets, AUGUST, 'partner', ME, PARTNER)?.amountYen).toBe(35000);
+  });
+
+  it('「共有」は全体予算を使う（共有専用の予算は設けていない）', () => {
+    expect(findTotalBudget(budgets, AUGUST, 'shared', ME, PARTNER)?.amountYen).toBe(200000);
+  });
+});
+
+describe('収入の支払者', () => {
+  it('収入は共有でも誰の収入かで絞り込める', () => {
+    const rows = [
+      transaction({ type: 'income', amountYen: 285000, paidBy: ME, shareScope: 'shared' }),
+      transaction({ type: 'income', amountYen: 178000, paidBy: PARTNER, shareScope: 'shared' }),
+      transaction({ type: 'expense', amountYen: 92000, paidBy: null, shareScope: 'shared' }),
+    ];
+    expect(totalIncome(applyFilter(rows, { viewer: 'me', meId: ME, partnerId: PARTNER }))).toBe(285000);
+    expect(totalIncome(applyFilter(rows, { viewer: 'partner', meId: ME, partnerId: PARTNER }))).toBe(
+      178000,
+    );
+    // 共有（支払った人なし）は支出だけ
+    expect(totalIncome(applyFilter(rows, { viewer: 'shared', meId: ME, partnerId: PARTNER }))).toBe(0);
+  });
+
+  it('収入に人が紐づいていても、支払者別の支出内訳には影響しない', () => {
+    const members = [
+      { userId: ME, displayName: 'わたし' },
+      { userId: PARTNER, displayName: 'パートナー' },
+    ];
+    const rows = [
+      transaction({ type: 'income', amountYen: 285000, paidBy: ME, shareScope: 'shared' }),
+      transaction({ type: 'expense', amountYen: 92000, paidBy: null, shareScope: 'shared' }),
+    ];
+    const breakdown = memberBreakdown(rows, members);
+    expect(breakdown.find((r) => r.id === ME)?.amountYen).toBe(0);
+    expect(breakdown.find((r) => r.id === SHARED_PAYER_ID)?.amountYen).toBe(92000);
   });
 });

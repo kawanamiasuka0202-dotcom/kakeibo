@@ -193,7 +193,7 @@ interface RecurringFormValues {
   amountYen: number;
   categoryId: string;
   dayOfMonth: number;
-  paidBy: string;
+  paidBy: string | null;
   shareScope: ShareScope;
   paymentMethod: PaymentMethod;
   memo: string;
@@ -215,7 +215,7 @@ function RecurringForm({
   const [amount, setAmount] = React.useState(initial ? String(initial.amountYen) : '');
   const [categoryId, setCategoryId] = React.useState(initial?.categoryId ?? '');
   const [dayOfMonth, setDayOfMonth] = React.useState(String(initial?.dayOfMonth ?? 1));
-  const [paidBy, setPaidBy] = React.useState(initial?.paidBy ?? me.id);
+  const [paidBy, setPaidBy] = React.useState<string>(initial?.paidBy ?? me.id);
   const [shareScope, setShareScope] = React.useState<ShareScope>(initial?.shareScope ?? 'shared');
   const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>(
     initial?.paymentMethod ?? '口座振替',
@@ -243,7 +243,8 @@ function RecurringForm({
       amountYen: parsed!,
       categoryId,
       dayOfMonth: Number(dayOfMonth),
-      paidBy,
+      // 定期支出は支出のみ。共有は家計から出したものとして扱う。
+      paidBy: shareScope === 'shared' ? null : paidBy,
       shareScope,
       paymentMethod,
       memo: memo.trim(),
@@ -295,7 +296,7 @@ function RecurringForm({
         </Select>
       </Field>
 
-      {isShared ? (
+      {isShared && shareScope === 'personal' ? (
         <Field label="支払う人" htmlFor="rec-paidby">
           <Select id="rec-paidby" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
             {data.members.map((m) => (

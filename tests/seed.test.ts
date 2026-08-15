@@ -81,10 +81,18 @@ describe('デモデータ', () => {
     expect(snapshot.todos.length).toBeGreaterThan(0);
   });
 
-  it('共有の支出には支払った人を持たせない（個人に加算しないため）', () => {
-    const shared = snapshot.transactions.filter((t) => t.shareScope === 'shared');
+  it('共有の「支出」には支払った人を持たせない（個人に加算しないため）', () => {
+    const shared = snapshot.transactions.filter(
+      (t) => t.type === 'expense' && t.shareScope === 'shared',
+    );
     expect(shared.length).toBeGreaterThan(0);
     expect(shared.every((t) => t.paidBy === null)).toBe(true);
+  });
+
+  it('共有でも「収入」は誰の収入かを残す', () => {
+    const income = snapshot.transactions.filter((t) => t.type === 'income');
+    expect(income.length).toBeGreaterThan(0);
+    expect(income.every((t) => t.paidBy !== null)).toBe(true);
   });
 
   it('個人の支出には支払った人がいる', () => {

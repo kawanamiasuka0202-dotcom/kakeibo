@@ -105,10 +105,13 @@ export function ViewerSwitch({
   partnerName: string;
   className?: string;
 }) {
-  const options: { id: ViewerFilter; label: string }[] = [
-    { id: 'all', label: '2人合計' },
-    { id: 'me', label: '自分' },
-    { id: 'partner', label: partnerName },
+  // 4つ並ぶと1つ分の幅が狭いため、長い名前は先頭だけ表示して省略する
+  const shortPartner = partnerName.length > 4 ? `${partnerName.slice(0, 4)}…` : partnerName;
+  const options: { id: ViewerFilter; label: string; full: string }[] = [
+    { id: 'all', label: '2人合計', full: '2人合計' },
+    { id: 'shared', label: '共有', full: '共有（家計から出したお金）' },
+    { id: 'me', label: '自分', full: '自分の個人支出' },
+    { id: 'partner', label: shortPartner, full: `${partnerName}の個人支出` },
   ];
   return (
     <div
@@ -122,9 +125,11 @@ export function ViewerSwitch({
           role="tab"
           type="button"
           aria-selected={value === o.id}
+          aria-label={o.full}
+          title={o.full}
           onClick={() => onChange(o.id)}
           className={cn(
-            'min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-sm font-semibold transition-colors',
+            'min-w-0 flex-1 truncate rounded-lg px-1.5 py-2 text-[13px] font-semibold transition-colors',
             value === o.id ? 'bg-surface text-foreground shadow-sm' : 'text-muted',
           )}
         >

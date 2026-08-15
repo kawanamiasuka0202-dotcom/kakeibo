@@ -158,7 +158,14 @@ export default function HomePage() {
       ]
     : [];
 
-  const viewerLabel = viewer === 'all' ? '2人合計' : viewer === 'me' ? '自分' : (partner?.displayName ?? 'パートナー');
+  const viewerLabel =
+    viewer === 'all'
+      ? '2人合計'
+      : viewer === 'shared'
+        ? '共有'
+        : viewer === 'me'
+          ? '自分'
+          : (partner?.displayName ?? 'パートナー');
 
   return (
     <div className="space-y-4">
@@ -262,6 +269,13 @@ export default function HomePage() {
             <StatRow label="今月の収入" value={formatYen(summary.incomeYen)} />
           ) : null}
         </div>
+
+        {viewer === 'shared' ? (
+          <p className="mt-2 text-xs text-muted">
+            家計から出したお金だけの金額です。2人それぞれの個人支出は含みません
+            （予算は全体予算と比べています）。
+          </p>
+        ) : null}
 
         <div className="mt-2 flex justify-end">
           <Link href="/budget" className="flex items-center gap-0.5 text-sm font-semibold text-primary">

@@ -118,7 +118,10 @@ export function findTotalBudget(
   partnerId?: UUID | null,
 ): Budget | null {
   const rows = budgetsOfMonth(budgets, key).filter((b) => b.categoryId === null);
-  if (viewer === 'all') return rows.find((b) => b.scope === 'household') ?? null;
+  // 「共有」は家計全体の予算をそのまま使う（共有だけの予算は別に設けていない）
+  if (viewer === 'all' || viewer === 'shared') {
+    return rows.find((b) => b.scope === 'household') ?? null;
+  }
   const userId = viewer === 'me' ? meId : partnerId;
   if (!userId) return null;
   return rows.find((b) => b.scope === 'personal' && b.userId === userId) ?? null;

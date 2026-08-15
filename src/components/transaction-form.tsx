@@ -69,7 +69,7 @@ export function TransactionForm({
     description: initial?.description ?? '',
     occurredOn: initial?.occurredOn ?? today ?? todayJst(),
     paidBy:
-      (initial?.shareScope ?? 'shared') === 'shared'
+      (initial?.type ?? 'expense') === 'expense' && (initial?.shareScope ?? 'shared') === 'shared'
         ? SHARED_PAYER_VALUE
         : (initial?.paidBy ?? me.id),
     shareScope: initial?.shareScope ?? 'shared',
@@ -114,6 +114,15 @@ export function TransactionForm({
     setState((prev) => ({ ...prev, [key]: value }));
   };
 
+  /**
+   * 「家計から出したお金」として扱うのは支出の共有だけ。
+   * 収入は誰の収入かが分かるように、共有でも人を選べるようにする。
+   */
+  const isHouseholdPayment = (type: TxType, scope: ShareScope) =>
+    type === 'expense' && scope === 'shared';
+
+  const payerLabel = state.type === 'income' ? '受け取った人' : '支払った人';
+
   const pressKey = (key: string) => {
     setState((prev) => {
       if (key === 'back') return { ...prev, amount: prev.amount.slice(0, -1) };
@@ -133,8 +142,8 @@ export function TransactionForm({
       categoryId: state.categoryId,
       description: state.description.trim(),
       occurredOn: state.occurredOn,
-      // 共有は「誰の支払いでもない」= null として保存する
-      paidBy: state.shareScope === 'shared' || state.paidBy === SHARED_PAYER_VALUE ? null : state.paidBy,
+      // 支出の共有だけ「誰の支払いでもない」= null として保存する
+      paidBy: isHouseholdPayment(state.type, state.shareScope) ? null : state.paidBy,
       shareScope: state.shareScope,
       paymentMethod: state.paymentMethod,
       memo: state.memo.trim(),
@@ -213,8 +222,17 @@ export function TransactionForm({
             key={t}
             type="button"
             onClick={() => {
-              setField('type', t);
-              setField('categoryId', '');
+              setState((prev) => ({
+                ...prev,
+                type: t,
+                categoryId: '',
+                // 収入は共有でも人を選ぶ／支出の共有は家計扱いに戻す
+                paidBy: isHouseholdPayment(t, prev.shareScope)
+                  ? SHARED_PAYER_VALUE
+                  : prev.paidBy === SHARED_PAYER_VALUE
+                    ? me.id
+                    : prev.paidBy,
+              }));
             }}
             aria-pressed={state.type === t}
             className={cn(
@@ -341,34 +359,39 @@ export function TransactionForm({
                 setState((prev) => ({
                   ...prev,
                   shareScope: next,
-                  // 共有は「家計から出したお金」として扱い、誰か個人の支出にはしない
-                  paidBy: next === 'shared' ? SHARED_PAYER_VALUE : me.id,
+                  paidBy: isHouseholdPayment(prev.type, next) ? SHARED_PAYER_VALUE : me.id,
                 }));
               }}
             >
-              <option value="shared">共有（家計の支出）</option>
-              <option value="personal">個人（自分の支出）</option>
+              <option value="shared">
+                {state.type === 'income' ? '共有（家計の収入）' : '共有（家計の支出）'}
+              </option>
+              <option value="personal">
+                {state.type === 'income' ? '個人（自分の収入）' : '個人（自分の支出）'}
+              </option>
             </Select>
           </Field>
 
           {isShared ? (
             <Field
-              label="支払った人"
+              label={payerLabel}
               htmlFor="paidBy"
               error={errors.paidBy}
               hint={
-                state.shareScope === 'shared'
+                isHouseholdPayment(state.type, state.shareScope)
                   ? '共有の支出は家計から出したものとして記録します。どちらか個人の支出には加算されません。'
-                  : undefined
+                  : state.type === 'income'
+                    ? '共有の収入でも、誰の収入かは記録します。'
+                    : undefined
               }
             >
               <Select
                 id="paidBy"
                 value={state.paidBy}
-                disabled={state.shareScope === 'shared'}
+                disabled={isHouseholdPayment(state.type, state.shareScope)}
                 onChange={(e) => setField('paidBy', e.target.value)}
               >
-                {state.shareScope === 'shared' ? (
+                {isHouseholdPayment(state.type, state.shareScope) ? (
                   <option value={SHARED_PAYER_VALUE}>共有（家計から）</option>
                 ) : (
                   data.members.map((m) => (
