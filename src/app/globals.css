@@ -102,9 +102,14 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  /*
+   * ノッチ等を避けるための左右余白。
+   * env() は通常の画面では 0 になるため、max() で基本の余白（1rem）を必ず確保する。
+   * （max() を使わないと px-4 を打ち消して、内容が画面の端に張り付いてしまう）
+   */
   .safe-x {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
   }
   /* 下部タブの高さ + セーフエリア分の余白 */
   .pb-nav {

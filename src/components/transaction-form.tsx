@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Delete } from 'lucide-react';
+import { Delete } from 'lucide-react';
 import { useHousehold } from '@/components/app-provider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -71,7 +71,6 @@ export function TransactionForm({
     savingsGoalId: initial?.savingsGoalId ?? '',
   }));
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [showDetail, setShowDetail] = React.useState(mode === 'edit');
   const [submitting, setSubmitting] = React.useState(false);
 
   const categories = state.type === 'expense' ? expenseCategories : incomeCategories;
@@ -138,7 +137,6 @@ export function TransactionForm({
     const result = validateTransaction(input);
     if (!result.ok) {
       setErrors(result.errors);
-      if (result.errors.categoryId) setShowDetail(true);
       return;
     }
     setErrors({});
@@ -190,7 +188,6 @@ export function TransactionForm({
         savingsGoalId: '',
         occurredOn: today ?? todayJst(),
       }));
-      setShowDetail(false);
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -316,19 +313,8 @@ export function TransactionForm({
         </Field>
       </Card>
 
-      {/* 詳細 */}
-      <button
-        type="button"
-        onClick={() => setShowDetail((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold"
-        aria-expanded={showDetail}
-      >
-        詳細を{showDetail ? '閉じる' : '開く'}（日付・支払方法など）
-        <ChevronDown className={cn('size-5 transition-transform', showDetail && 'rotate-180')} />
-      </button>
-
-      {showDetail ? (
-        <Card className="space-y-4">
+      {/* 詳細（日付・支払方法など） */}
+      <Card className="space-y-4">
           <Field label="日付" htmlFor="occurredOn" error={errors.occurredOn}>
             <Input
               id="occurredOn"
@@ -338,11 +324,40 @@ export function TransactionForm({
             />
           </Field>
 
+          <Field label="区分" htmlFor="shareScope">
+            <Select
+              id="shareScope"
+              value={state.shareScope}
+              onChange={(e) => {
+                const next = e.target.value as ShareScope;
+                setState((prev) => ({
+                  ...prev,
+                  shareScope: next,
+                  // 共有は家計全体の支出として扱うため、支払った人は自分に戻す
+                  paidBy: next === 'shared' ? me.id : prev.paidBy,
+                }));
+              }}
+            >
+              <option value="shared">共有（家計の支出）</option>
+              <option value="personal">個人（自分の支出）</option>
+            </Select>
+          </Field>
+
           {isShared ? (
-            <Field label="支払った人" htmlFor="paidBy" error={errors.paidBy}>
+            <Field
+              label="支払った人"
+              htmlFor="paidBy"
+              error={errors.paidBy}
+              hint={
+                state.shareScope === 'shared'
+                  ? '共有の支出は家計全体の支出として記録するため、支払った人は選べません。'
+                  : undefined
+              }
+            >
               <Select
                 id="paidBy"
                 value={state.paidBy}
+                disabled={state.shareScope === 'shared'}
                 onChange={(e) => setField('paidBy', e.target.value)}
               >
                 {data.members.map((m) => (
@@ -353,17 +368,6 @@ export function TransactionForm({
               </Select>
             </Field>
           ) : null}
-
-          <Field label="区分" htmlFor="shareScope">
-            <Select
-              id="shareScope"
-              value={state.shareScope}
-              onChange={(e) => setField('shareScope', e.target.value as ShareScope)}
-            >
-              <option value="shared">共有（家計の支出）</option>
-              <option value="personal">個人（自分の支出）</option>
-            </Select>
-          </Field>
 
           <Field label="支払方法" htmlFor="paymentMethod">
             <Select
@@ -420,8 +424,7 @@ export function TransactionForm({
           <p className="text-xs text-muted">
             レシート画像の添付は今後のバージョンで対応予定です。
           </p>
-        </Card>
-      ) : null}
+      </Card>
 
       <div className="flex gap-2">
         {afterSave === 'stay' ? (

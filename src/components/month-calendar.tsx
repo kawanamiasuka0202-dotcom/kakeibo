@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { datesInPeriod, formatMonthDay, parseYmd, weekdayIndex, type MonthPeriod } from '@/lib/date';
-import { formatYen, formatYenCompact } from '@/lib/money';
+import { formatYen } from '@/lib/money';
 import type { Transaction } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,17 @@ interface DayCell {
   expenseYen: number;
   incomeYen: number;
   count: number;
+}
+
+/**
+ * 桁数に応じて文字を小さくし、金額を省略せずにマス内へ収める。
+ * （1マスの幅は端末によって 40px 前後しかないため）
+ */
+function amountFontClass(amount: number, withSign = false): string {
+  const length = amount.toLocaleString('ja-JP').length + (withSign ? 1 : 0);
+  if (length >= 9) return 'text-[7px]';
+  if (length >= 7) return 'text-[8px]';
+  return 'text-[9px]';
 }
 
 /**
@@ -57,7 +68,8 @@ export function MonthCalendar({
 
   return (
     <div>
-      <div className="grid grid-cols-7 gap-1">
+      {/* 金額を省略せずに出すため、マスの幅を最大限とる（間隔と余白は最小限） */}
+      <div className="-mx-2 grid grid-cols-7 gap-x-0.5 gap-y-1">
         {WEEK_HEADERS.map((label, i) => (
           <div
             key={label}
@@ -92,7 +104,7 @@ export function MonthCalendar({
                 cell.incomeYen > 0 ? ` 収入 ${formatYen(cell.incomeYen)}` : ''
               }`}
               className={cn(
-                'flex min-h-14 flex-col items-center rounded-lg border px-0.5 py-1 transition-colors',
+                'flex min-h-14 flex-col items-center overflow-hidden rounded-lg border px-0 py-1 transition-colors',
                 isSelected ? 'border-primary bg-primary-soft' : 'border-transparent',
                 isToday && !isSelected ? 'border-primary/50' : '',
               )}
@@ -111,13 +123,13 @@ export function MonthCalendar({
                 {cell.day}
               </span>
               {cell.expenseYen > 0 ? (
-                <span className="tabular w-full truncate text-center text-[9px] font-semibold leading-tight">
-                  {formatYenCompact(cell.expenseYen)}
+                <span className={cn('tabular w-full text-center font-semibold leading-tight', amountFontClass(cell.expenseYen))}>
+                  {cell.expenseYen.toLocaleString('ja-JP')}
                 </span>
               ) : null}
               {cell.incomeYen > 0 ? (
-                <span className="tabular w-full truncate text-center text-[9px] font-semibold leading-tight text-success">
-                  +{formatYenCompact(cell.incomeYen)}
+                <span className={cn('tabular w-full text-center font-semibold leading-tight text-success', amountFontClass(cell.incomeYen, true))}>
+                  +{cell.incomeYen.toLocaleString('ja-JP')}
                 </span>
               ) : null}
             </button>

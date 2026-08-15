@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { ArrowRight, CalendarClock, CheckCircle2, MessageSquare, PiggyBank } from 'lucide-react';
 import { useHousehold } from '@/components/app-provider';
-import { BudgetAlert, MonthSwitcher, StatRow, ViewerSwitch } from '@/components/common';
+import { BudgetAlert, MonthSwitcher, PageHeader, StatRow, ViewerSwitch } from '@/components/common';
 import { ChartLegend, DonutChart, type Segment } from '@/components/charts';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -162,6 +162,8 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader title="ホーム" />
+
       <MonthSwitcher
         monthKey={monthKey}
         onChange={setMonthKey}

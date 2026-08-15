@@ -33,8 +33,9 @@ export function PageHeader({
             <ChevronLeft className="size-6" />
           </Link>
         ) : null}
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold">{title}</h1>
+        {/* 見出しは少し内側に寄せ、色を付けて画面の区切りを分かりやすくする */}
+        <div className={cn('min-w-0 border-l-4 border-primary pl-2.5', !back && 'ml-1')}>
+          <h1 className="truncate text-xl font-bold text-primary">{title}</h1>
           {subtitle ? <p className="mt-0.5 text-sm text-muted">{subtitle}</p> : null}
         </div>
       </div>
