@@ -9,6 +9,7 @@
 | `0002_functions.sql` | サーバー側で実行する処理（合言葉での参加など）・初期カテゴリ |
 | `0003_rls.sql` | アクセス制御（Row Level Security） |
 | `0004_realtime.sql` | リアルタイム更新の対象設定 |
+| `0005_shared_payer_and_comment_reactions.sql` | すでに 0001〜0004 を実行済みのデータベース向けの差分（新規作成時は不要） |
 
 ---
 
@@ -95,7 +96,7 @@ households（家計グループ。合言葉の照合用の値を持つ）
 | `type` | `expense` / `income` |
 | `amount_yen` | bigint。**`> 0` を CHECK 制約で強制**（0円以下は登録不可） |
 | `occurred_on` | date（日本時間で決めた日付） |
-| `paid_by` | 支払った人 |
+| `paid_by` | 支払った人。**NULL は「共有（家計から出したお金）」**を表し、特定の個人の支出としては集計しない |
 | `share_scope` | `shared`（家計の支出）/ `personal`（個人の支出） |
 | `savings_goal_id` | 貯金目標との関連付け（任意） |
 | `receipt_path` | レシート画像の保存先（**将来用。初期版では未使用**） |
@@ -113,10 +114,13 @@ households（家計グループ。合言葉の照合用の値を持つ）
 `day_of_month` は1〜28。`last_confirmed_month` に取り込み済みの月を記録し、
 同じ月に二重で候補が出ないようにしています。**自動での取引作成は行いません。**
 
-### todos / comments / comment_reads
+### todos / comments / comment_reads / comment_reactions
 
 - `todos` の担当者は `assignee_user_id`（個人）または `assign_both`（2人）で表します。
 - `comments` は `link_type` / `link_id` で、支出・貯金目標・Todo に紐づけられます。
+- `comments.parent_id` は返信先のコメント。`on delete cascade` なので、元のコメントを消すと返信も消えます。
+  画面では返信を1段階までにしています（深い階層はスマホで読みにくいため）。
+- `comment_reactions` は「いいね」。`(comment_id, user_id)` が主キーなので、1人1コメントにつき1件だけです。
 - `comment_reads` は「どこまで読んだか」だけを持ち、未読件数の計算に使います。
 
 ---
@@ -150,6 +154,7 @@ public.is_household_member(hid uuid) -- 自分がそのグループのメンバ�
 | todos | メンバー | メンバー（作成者＝自分） | メンバー | メンバー |
 | comments | メンバー | メンバー かつ 投稿者＝自分 | **投稿者本人のみ** | **投稿者本人のみ** |
 | comment_reads | 自分の行のみ | 自分の行のみ | 自分の行のみ | 自分の行のみ |
+| comment_reactions | メンバー | メンバー かつ 本人 | ✗ | **本人のみ** |
 
 `anon`（未ログイン）にはテーブル権限を一切与えていません。
 

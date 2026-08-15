@@ -398,7 +398,10 @@ export function useHousehold() {
     me: data.me,
     partner,
     isShared: data.household.mode === 'shared' && data.members.length > 1,
-    memberName: (userId: string) =>
-      data.members.find((m) => m.userId === userId)?.displayName ?? 'メンバー',
+    /** 支払った人などの表示名。null は「共有（家計から出したお金）」を表す。 */
+    memberName: (userId: string | null) => {
+      if (userId === null) return '共有';
+      return data.members.find((m) => m.userId === userId)?.displayName ?? 'メンバー';
+    },
   };
 }

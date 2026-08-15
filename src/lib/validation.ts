@@ -46,7 +46,8 @@ export function validateTransaction(input: Partial<TransactionInput>): Validatio
   if (dateError) errors.occurredOn = dateError;
 
   if (!input.categoryId) errors.categoryId = 'カテゴリを選択してください';
-  if (!input.paidBy) errors.paidBy = '支払った人を選択してください';
+  // paidBy は null（共有＝家計から出したお金）を許す
+  if (input.paidBy === undefined) errors.paidBy = '支払った人を選択してください';
   if (input.type !== 'expense' && input.type !== 'income') errors.type = '種別を選択してください';
   if (input.shareScope !== 'shared' && input.shareScope !== 'personal') {
     errors.shareScope = '区分を選択してください';

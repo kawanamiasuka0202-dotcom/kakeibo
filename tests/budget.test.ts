@@ -11,6 +11,7 @@ import {
   memberBreakdown,
   monthlyTrend,
   scopeBreakdown,
+  SHARED_PAYER_ID,
   totalExpense,
   totalIncome,
 } from '@/lib/budget';
@@ -75,6 +76,33 @@ describe('表示対象の絞り込み', () => {
   it('パートナーがいない場合、partner 指定では何も返らない', () => {
     const theirs = applyFilter(rows, { viewer: 'partner', meId: ME, partnerId: null });
     expect(theirs).toHaveLength(0);
+  });
+
+  it('共有（支払った人なし）は個人の絞り込みに含まれない', () => {
+    const list = [
+      transaction({ paidBy: null, amountYen: 92000, shareScope: 'shared' }),
+      transaction({ paidBy: ME, amountYen: 3000, shareScope: 'personal' }),
+    ];
+    expect(totalExpense(applyFilter(list, { viewer: 'me', meId: ME, partnerId: PARTNER }))).toBe(3000);
+    expect(totalExpense(applyFilter(list, { viewer: 'partner', meId: ME, partnerId: PARTNER }))).toBe(0);
+  });
+
+  it('shared 指定なら共有の支出だけを返す', () => {
+    const list = [
+      transaction({ paidBy: null, amountYen: 92000, shareScope: 'shared' }),
+      transaction({ paidBy: ME, amountYen: 3000, shareScope: 'personal' }),
+    ];
+    const shared = applyFilter(list, { viewer: 'shared', meId: ME, partnerId: PARTNER });
+    expect(shared).toHaveLength(1);
+    expect(totalExpense(shared)).toBe(92000);
+  });
+
+  it('2人合計（all）は共有も個人もすべて含む', () => {
+    const list = [
+      transaction({ paidBy: null, amountYen: 92000, shareScope: 'shared' }),
+      transaction({ paidBy: ME, amountYen: 3000, shareScope: 'personal' }),
+    ];
+    expect(totalExpense(applyFilter(list, { viewer: 'all', meId: ME, partnerId: PARTNER }))).toBe(95000);
   });
 
   it('共有・個人の区分で絞れる', () => {
@@ -284,6 +312,29 @@ describe('内訳', () => {
     const breakdown = memberBreakdown(rows, members);
     expect(breakdown[0].amountYen).toBe(90000);
     expect(breakdown[1].amountYen).toBe(10000);
+  });
+
+  it('共有の支出は個人に振り分けず「共有」としてまとめる', () => {
+    const members = [
+      { userId: ME, displayName: 'わたし' },
+      { userId: PARTNER, displayName: 'パートナー' },
+    ];
+    const withShared = [
+      transaction({ amountYen: 92000, paidBy: null, shareScope: 'shared' }),
+      transaction({ amountYen: 8000, paidBy: ME, shareScope: 'personal' }),
+      transaction({ amountYen: 5000, paidBy: PARTNER, shareScope: 'personal' }),
+    ];
+    const breakdown = memberBreakdown(withShared, members);
+    const shared = breakdown.find((r) => r.id === SHARED_PAYER_ID);
+    expect(shared?.amountYen).toBe(92000);
+    expect(breakdown.find((r) => r.id === ME)?.amountYen).toBe(8000);
+    expect(breakdown.find((r) => r.id === PARTNER)?.amountYen).toBe(5000);
+  });
+
+  it('共有の支出がなければ「共有」の行は出さない', () => {
+    const members = [{ userId: ME, displayName: 'わたし' }];
+    const onlyPersonal = [transaction({ amountYen: 8000, paidBy: ME, shareScope: 'personal' })];
+    expect(memberBreakdown(onlyPersonal, members).some((r) => r.id === SHARED_PAYER_ID)).toBe(false);
   });
 
   it('共有・個人の内訳を計算する', () => {

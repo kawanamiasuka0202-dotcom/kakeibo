@@ -29,7 +29,10 @@ export class DemoBackend implements Backend {
       return fresh;
     }
     try {
-      return JSON.parse(raw) as HouseholdSnapshot;
+      const parsed = JSON.parse(raw) as HouseholdSnapshot;
+      // 古い形式で保存されている場合に備えて、後から足した項目を補う
+      parsed.commentReactions ??= [];
+      return parsed;
     } catch {
       const fresh = buildDemoSnapshot();
       this.write(fresh, false);
@@ -137,6 +140,11 @@ export class DemoBackend implements Backend {
       if (entity === 'savings_goals') {
         s.savingsEntries = s.savingsEntries.filter((e) => e.goalId !== id);
       }
+      if (entity === 'comments') {
+        // 返信といいねも一緒に消す（DB の on delete cascade と同じ動き）
+        s.comments = s.comments.filter((c) => c.parentId !== id);
+        s.commentReactions = (s.commentReactions ?? []).filter((r) => r.commentId !== id);
+      }
     });
   }
 
@@ -165,6 +173,24 @@ export class DemoBackend implements Backend {
   async markCommentsRead(at: string): Promise<void> {
     this.mutate((s) => {
       s.lastCommentReadAt = at;
+    });
+  }
+
+  async setCommentReaction(commentId: UUID, liked: boolean): Promise<void> {
+    this.mutate((s) => {
+      const list = s.commentReactions ?? [];
+      const rest = list.filter((r) => !(r.commentId === commentId && r.userId === s.me.id));
+      s.commentReactions = liked
+        ? [
+            ...rest,
+            {
+              commentId,
+              userId: s.me.id,
+              householdId: s.household.id,
+              createdAt: nowIso(),
+            },
+          ]
+        : rest;
     });
   }
 

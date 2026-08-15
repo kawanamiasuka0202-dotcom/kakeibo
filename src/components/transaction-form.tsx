@@ -21,12 +21,16 @@ interface FormState {
   categoryId: string;
   description: string;
   occurredOn: string;
+  /** SHARED_PAYER_VALUE のときは「共有（家計から）」= 保存時は null にする */
   paidBy: string;
   shareScope: ShareScope;
   paymentMethod: PaymentMethod;
   memo: string;
   savingsGoalId: string;
 }
+
+/** select は値に null を持てないため、画面上だけで使う「共有」を表す値 */
+const SHARED_PAYER_VALUE = '__shared__';
 
 export function TransactionForm({
   mode,
@@ -64,7 +68,10 @@ export function TransactionForm({
     categoryId: initial?.categoryId ?? '',
     description: initial?.description ?? '',
     occurredOn: initial?.occurredOn ?? today ?? todayJst(),
-    paidBy: initial?.paidBy ?? me.id,
+    paidBy:
+      (initial?.shareScope ?? 'shared') === 'shared'
+        ? SHARED_PAYER_VALUE
+        : (initial?.paidBy ?? me.id),
     shareScope: initial?.shareScope ?? 'shared',
     paymentMethod: initial?.paymentMethod ?? readLocal<PaymentMethod>('kakeibo:last-payment', '現金'),
     memo: initial?.memo ?? '',
@@ -126,7 +133,8 @@ export function TransactionForm({
       categoryId: state.categoryId,
       description: state.description.trim(),
       occurredOn: state.occurredOn,
-      paidBy: state.paidBy,
+      // 共有は「誰の支払いでもない」= null として保存する
+      paidBy: state.shareScope === 'shared' || state.paidBy === SHARED_PAYER_VALUE ? null : state.paidBy,
       shareScope: state.shareScope,
       paymentMethod: state.paymentMethod,
       memo: state.memo.trim(),
@@ -333,8 +341,8 @@ export function TransactionForm({
                 setState((prev) => ({
                   ...prev,
                   shareScope: next,
-                  // 共有は家計全体の支出として扱うため、支払った人は自分に戻す
-                  paidBy: next === 'shared' ? me.id : prev.paidBy,
+                  // 共有は「家計から出したお金」として扱い、誰か個人の支出にはしない
+                  paidBy: next === 'shared' ? SHARED_PAYER_VALUE : me.id,
                 }));
               }}
             >
@@ -350,7 +358,7 @@ export function TransactionForm({
               error={errors.paidBy}
               hint={
                 state.shareScope === 'shared'
-                  ? '共有の支出は家計全体の支出として記録するため、支払った人は選べません。'
+                  ? '共有の支出は家計から出したものとして記録します。どちらか個人の支出には加算されません。'
                   : undefined
               }
             >
@@ -360,11 +368,15 @@ export function TransactionForm({
                 disabled={state.shareScope === 'shared'}
                 onChange={(e) => setField('paidBy', e.target.value)}
               >
-                {data.members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {memberName(m.userId)}
-                  </option>
-                ))}
+                {state.shareScope === 'shared' ? (
+                  <option value={SHARED_PAYER_VALUE}>共有（家計から）</option>
+                ) : (
+                  data.members.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {memberName(m.userId)}
+                    </option>
+                  ))
+                )}
               </Select>
             </Field>
           ) : null}

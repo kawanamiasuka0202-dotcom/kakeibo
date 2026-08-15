@@ -28,6 +28,8 @@ export default function ExpensesPage() {
   const [viewerFilter, setViewerFilter] = React.useState<ViewerFilter>('all');
   const [scope, setScope] = React.useState<ShareScope | 'both'>('both');
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
+  // カレンダーだけの表示対象（誰がいつ使ったかを見るための切り替え）
+  const [calendarViewer, setCalendarViewer] = React.useState<ViewerFilter>('all');
 
   const period = monthPeriod(monthKey, household.monthStartDay);
   const monthTransactions = React.useMemo(() => inPeriod(transactions, period), [transactions, period]);
@@ -51,12 +53,26 @@ export default function ExpensesPage() {
     [monthTransactions, viewerFilter, me.id, partner, scope, categoryId, keyword, type, categories],
   );
 
+  // カレンダーは自分の切り替え（2人合計／共有／個人）を反映する
+  const calendarTransactions = React.useMemo(
+    () =>
+      applyFilter(conditionFiltered, {
+        viewer: calendarViewer,
+        meId: me.id,
+        partnerId: partner?.userId ?? null,
+      }),
+    [conditionFiltered, calendarViewer, me.id, partner],
+  );
+
   const filtered = React.useMemo(
     () =>
-      (selectedDate ? conditionFiltered.filter((t) => t.occurredOn === selectedDate) : conditionFiltered)
+      (selectedDate
+        ? calendarTransactions.filter((t) => t.occurredOn === selectedDate)
+        : conditionFiltered
+      )
         .slice()
         .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn) || b.createdAt.localeCompare(a.createdAt)),
-    [conditionFiltered, selectedDate],
+    [conditionFiltered, calendarTransactions, selectedDate],
   );
 
   // 表示月を変えたら、選んでいた日付は解除する
@@ -139,14 +155,34 @@ export default function ExpensesPage() {
       <Card>
         <CardHeader>
           <CardTitle>いつ、いくら使ったか</CardTitle>
+          {isShared ? (
+            <Select
+              value={calendarViewer}
+              onChange={(e) => setCalendarViewer(e.target.value as ViewerFilter)}
+              aria-label="カレンダーの表示対象"
+              className="h-9 w-36 py-1 text-sm"
+            >
+              <option value="all">2人合計</option>
+              <option value="shared">共有のみ</option>
+              <option value="me">自分の個人</option>
+              <option value="partner">{partner?.displayName ?? 'パートナー'}の個人</option>
+            </Select>
+          ) : null}
         </CardHeader>
         <MonthCalendar
           period={period}
-          transactions={conditionFiltered}
+          transactions={calendarTransactions}
           today={today}
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
         />
+        {isShared && calendarViewer !== 'all' ? (
+          <p className="mt-2 text-center text-xs text-muted">
+            {calendarViewer === 'shared'
+              ? '家計から出したお金だけを表示しています。'
+              : `${calendarViewer === 'me' ? '自分' : (partner?.displayName ?? 'パートナー')}が個人で払った分だけを表示しています。`}
+          </p>
+        ) : null}
       </Card>
 
       <Card>

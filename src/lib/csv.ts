@@ -43,7 +43,8 @@ export function transactionsToCsv(
       t.amountYen,
       categoryName.get(t.categoryId) ?? '',
       t.description,
-      memberNames.get(t.paidBy) ?? '',
+      // 支払った人が null の行は「共有（家計から出したお金）」
+      t.paidBy === null ? '共有' : (memberNames.get(t.paidBy) ?? ''),
       t.shareScope === 'shared' ? '共有' : '個人',
       t.paymentMethod,
       t.memo,

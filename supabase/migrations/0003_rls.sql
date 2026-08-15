@@ -22,6 +22,7 @@ alter table public.recurring_rules     enable row level security;
 alter table public.todos               enable row level security;
 alter table public.comments            enable row level security;
 alter table public.comment_reads       enable row level security;
+alter table public.comment_reactions   enable row level security;
 
 -- 未ログイン(anon)には一切のテーブル権限を渡さない
 revoke all on all tables in schema public from anon;
@@ -34,7 +35,8 @@ grant select, insert, update, delete on
   public.recurring_rules,
   public.todos,
   public.comments,
-  public.comment_reads
+  public.comment_reads,
+  public.comment_reactions
 to authenticated;
 grant select, update on public.households, public.profiles to authenticated;
 grant select on public.household_members to authenticated;
@@ -335,3 +337,21 @@ create policy comment_reads_all on public.comment_reads
   for all to authenticated
   using (user_id = auth.uid() and public.is_household_member(household_id))
   with check (user_id = auth.uid() and public.is_household_member(household_id));
+
+-- ---------------------------------------------------------------------------
+-- comment_reactions : いいねは2人とも見られる。付け外しは本人のみ。
+-- ---------------------------------------------------------------------------
+drop policy if exists comment_reactions_select on public.comment_reactions;
+create policy comment_reactions_select on public.comment_reactions
+  for select to authenticated
+  using (public.is_household_member(household_id));
+
+drop policy if exists comment_reactions_insert on public.comment_reactions;
+create policy comment_reactions_insert on public.comment_reactions
+  for insert to authenticated
+  with check (public.is_household_member(household_id) and user_id = auth.uid());
+
+drop policy if exists comment_reactions_delete on public.comment_reactions;
+create policy comment_reactions_delete on public.comment_reactions
+  for delete to authenticated
+  using (public.is_household_member(household_id) and user_id = auth.uid());

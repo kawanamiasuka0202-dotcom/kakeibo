@@ -102,7 +102,11 @@ export interface Transaction {
   categoryId: UUID;
   description: string;
   occurredOn: Ymd;
-  paidBy: UUID;
+  /**
+   * 支払った人。null は「共有（家計から出した）」を表し、
+   * 特定の個人が払ったものとしては集計しない。
+   */
+  paidBy: UUID | null;
   shareScope: ShareScope;
   paymentMethod: PaymentMethod;
   memo: string;
@@ -129,7 +133,8 @@ export interface RecurringRule {
   categoryId: UUID;
   /** 毎月の発生日（1〜28） */
   dayOfMonth: number;
-  paidBy: UUID;
+  /** 支払った人。null は「共有（家計から出した）」 */
+  paidBy: UUID | null;
   shareScope: ShareScope;
   paymentMethod: PaymentMethod;
   memo: string;
@@ -177,8 +182,18 @@ export interface Comment {
   body: string;
   linkType: LinkType | null;
   linkId: UUID | null;
+  /** 返信のとき、返信先のコメントID。通常の投稿は null */
+  parentId: UUID | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** コメントへの「いいね」 */
+export interface CommentReaction {
+  commentId: UUID;
+  userId: UUID;
+  householdId: UUID;
+  createdAt: string;
 }
 
 export interface Todo {
@@ -214,9 +229,13 @@ export interface HouseholdSnapshot {
   savingsGoals: SavingsGoal[];
   savingsEntries: SavingsEntry[];
   comments: Comment[];
+  commentReactions: CommentReaction[];
   todos: Todo[];
   lastCommentReadAt: string | null;
 }
 
-/** ホーム画面などの表示対象フィルタ */
-export type ViewerFilter = 'all' | 'me' | 'partner';
+/**
+ * ホーム画面などの表示対象フィルタ。
+ * 'shared' は「共有（家計から出したお金）」だけを見るための指定。
+ */
+export type ViewerFilter = 'all' | 'me' | 'partner' | 'shared';

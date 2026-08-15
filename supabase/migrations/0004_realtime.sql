@@ -15,6 +15,7 @@ end;
 $$;
 
 alter publication supabase_realtime add table public.comments;
+alter publication supabase_realtime add table public.comment_reactions;
 alter publication supabase_realtime add table public.todos;
 alter publication supabase_realtime add table public.transactions;
 alter publication supabase_realtime add table public.budgets;
@@ -25,6 +26,7 @@ alter publication supabase_realtime add table public.household_members;
 
 -- 更新・削除イベントで変更前の行を配信できるようにする（UI の差分反映に使う）
 alter table public.comments replica identity full;
+alter table public.comment_reactions replica identity full;
 alter table public.todos replica identity full;
 alter table public.transactions replica identity full;
 alter table public.budgets replica identity full;

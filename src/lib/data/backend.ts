@@ -81,6 +81,9 @@ export interface Backend {
 
   markCommentsRead(at: string): Promise<void>;
 
+  /** コメントへの「いいね」を付ける／外す */
+  setCommentReaction(commentId: UUID, liked: boolean): Promise<void>;
+
   /**
    * パートナーを解除する。
    * 解除しただけでは相手が同じ合言葉で入り直せてしまうため、新しい合言葉が必須。

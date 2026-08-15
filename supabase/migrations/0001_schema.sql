@@ -223,7 +223,8 @@ create table if not exists public.transactions (
   category_id uuid not null references public.categories (id) on delete restrict,
   description text not null default '' check (char_length(description) <= 100),
   occurred_on date not null,
-  paid_by uuid not null references auth.users (id) on delete cascade,
+  -- NULL は「共有（家計から出した）」を表す。特定の個人の支出として集計しない。
+  paid_by uuid references auth.users (id) on delete cascade,
   share_scope text not null default 'shared' check (share_scope in ('shared', 'personal')),
   payment_method text not null default '現金' check (char_length(payment_method) <= 20),
   memo text not null default '' check (char_length(memo) <= 500),
@@ -274,7 +275,8 @@ create table if not exists public.recurring_rules (
   amount_yen bigint not null check (amount_yen > 0 and amount_yen <= 1000000000000),
   category_id uuid not null references public.categories (id) on delete restrict,
   day_of_month smallint not null default 1 check (day_of_month between 1 and 28),
-  paid_by uuid not null references auth.users (id) on delete cascade,
+  -- NULL は「共有（家計から出した）」を表す。特定の個人の支出として集計しない。
+  paid_by uuid references auth.users (id) on delete cascade,
   share_scope text not null default 'shared' check (share_scope in ('shared', 'personal')),
   payment_method text not null default '口座振替' check (char_length(payment_method) <= 20),
   memo text not null default '' check (char_length(memo) <= 500),
@@ -331,15 +333,29 @@ create table if not exists public.comments (
   body text not null check (char_length(body) between 1 and 1000),
   link_type text check (link_type in ('transaction', 'savings_goal', 'todo')),
   link_id uuid,
+  -- 返信のとき、返信先のコメント。元のコメントを消すと返信も消える。
+  parent_id uuid references public.comments (id) on delete cascade,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists comments_household_idx on public.comments (household_id, created_at desc);
+create index if not exists comments_parent_idx on public.comments (parent_id);
 
 create trigger comments_set_updated_at
   before update on public.comments
   for each row execute function public.set_updated_at();
+
+-- コメントへの「いいね」。1人1コメントにつき1件。
+create table if not exists public.comment_reactions (
+  comment_id uuid not null references public.comments (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  household_id uuid not null references public.households (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+
+create index if not exists comment_reactions_household_idx on public.comment_reactions (household_id);
 
 -- 未読件数のための既読位置
 create table if not exists public.comment_reads (

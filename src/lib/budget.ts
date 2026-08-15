@@ -69,10 +69,12 @@ export function applyFilter(
 
   return transactions.filter((t) => {
     if (type !== 'both' && t.type !== type) return false;
+    // 共有（paidBy が null）は誰か個人の支出には含めない
     if (viewer === 'me' && meId && t.paidBy !== meId) return false;
     if (viewer === 'partner') {
       if (!partnerId || t.paidBy !== partnerId) return false;
     }
+    if (viewer === 'shared' && t.paidBy !== null) return false;
     if (shareScope !== 'both' && t.shareScope !== shareScope) return false;
     if (categoryIds && categoryIds.length > 0 && !categoryIds.includes(t.categoryId)) return false;
     if (kw) {
@@ -121,6 +123,9 @@ export function findTotalBudget(
   if (!userId) return null;
   return rows.find((b) => b.scope === 'personal' && b.userId === userId) ?? null;
 }
+
+/** 支払者別の内訳で「共有（家計から）」を表すための ID */
+export const SHARED_PAYER_ID = '__shared__';
 
 /** カテゴリ別予算（世帯スコープのみ）を Map で返す。 */
 export function categoryBudgetMap(budgets: readonly Budget[], key: MonthKey): Map<UUID, Yen> {
@@ -319,30 +324,53 @@ export function categoryBreakdown(
   return rows.sort((a, b) => b.amountYen - a.amountYen || a.label.localeCompare(b.label, 'ja'));
 }
 
-/** 支払者別の内訳。 */
+/**
+ * 支払者別の内訳。
+ * 共有の支出（paidBy が null）は個人には振り分けず、「共有」としてまとめる。
+ */
 export function memberBreakdown(
   transactions: readonly Transaction[],
   members: readonly { userId: UUID; displayName: string }[],
 ): BreakdownRow[] {
   const expenses = transactions.filter((t) => t.type === 'expense');
   const total = totalExpense(expenses);
-  return members
-    .map((m, i) => {
-      const mine = expenses.filter((t) => t.paidBy === m.userId);
-      const amount = totalExpense(mine);
-      return {
-        id: m.userId,
-        label: m.displayName,
-        color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
-        amountYen: amount,
-        share: shareRate(amount, total),
-        count: mine.length,
-        budgetYen: null,
-        remainingYen: null,
-        usageRate: null,
-      };
-    })
-    .sort((a, b) => b.amountYen - a.amountYen);
+
+  const toRow = (
+    id: string,
+    label: string,
+    color: string,
+    rows: readonly Transaction[],
+  ): BreakdownRow => {
+    const amount = totalExpense(rows);
+    return {
+      id,
+      label,
+      color,
+      amountYen: amount,
+      share: shareRate(amount, total),
+      count: rows.length,
+      budgetYen: null,
+      remainingYen: null,
+      usageRate: null,
+    };
+  };
+
+  const memberRows = members.map((m, i) =>
+    toRow(
+      m.userId,
+      m.displayName,
+      FALLBACK_COLORS[i % FALLBACK_COLORS.length],
+      expenses.filter((t) => t.paidBy === m.userId),
+    ),
+  );
+
+  const sharedRows = expenses.filter((t) => t.paidBy === null);
+  const rows =
+    sharedRows.length > 0
+      ? [...memberRows, toRow(SHARED_PAYER_ID, '共有（家計から）', '#4e9c86', sharedRows)]
+      : memberRows;
+
+  return rows.sort((a, b) => b.amountYen - a.amountYen);
 }
 
 /** 共有支出 / 個人支出の内訳。 */

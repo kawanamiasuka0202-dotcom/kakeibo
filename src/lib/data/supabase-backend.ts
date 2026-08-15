@@ -1,5 +1,11 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import { ORDER_BY, ROW_TO_ENTITY, fromHouseholdRow, toRow } from '../supabase/mappers';
+import {
+  ORDER_BY,
+  ROW_TO_ENTITY,
+  fromCommentReactionRow,
+  fromHouseholdRow,
+  toRow,
+} from '../supabase/mappers';
 import type { Household, HouseholdSnapshot, Member, UUID } from '../types';
 import {
   BackendError,
@@ -9,13 +15,14 @@ import {
   type NewEntity,
 } from './backend';
 
-const REALTIME_TABLES: EntityName[] = [
+const REALTIME_TABLES: string[] = [
   'transactions',
   'budgets',
   'categories',
   'savings_goals',
   'savings_entries',
   'comments',
+  'comment_reactions',
   'todos',
 ];
 
@@ -77,7 +84,7 @@ export class SupabaseBackend implements Backend {
     const householdId = memberRow.household_id as string;
     this.householdId = householdId;
 
-    const [householdRes, membersRes, profilesRes, readRes] = await Promise.all([
+    const [householdRes, membersRes, profilesRes, readRes, reactionsRes] = await Promise.all([
       // passphrase_hash はブラウザから読めないようにしてあるため、列を明示して取得する
       this.supabase
         .from('households')
@@ -95,6 +102,7 @@ export class SupabaseBackend implements Backend {
         .eq('household_id', householdId)
         .eq('user_id', userId)
         .maybeSingle(),
+      this.supabase.from('comment_reactions').select('*').eq('household_id', householdId),
     ]);
 
     if (householdRes.error) wrapError(householdRes.error, '家計グループの取得に失敗しました');
@@ -153,6 +161,9 @@ export class SupabaseBackend implements Backend {
       savingsGoals: byEntity.savings_goals,
       savingsEntries: byEntity.savings_entries,
       comments: byEntity.comments,
+      commentReactions: ((reactionsRes.data ?? []) as Record<string, unknown>[]).map(
+        fromCommentReactionRow,
+      ),
       todos: byEntity.todos,
       lastCommentReadAt: (readRes.data?.last_read_at as string | undefined) ?? null,
     };
@@ -252,6 +263,24 @@ export class SupabaseBackend implements Backend {
       .from('comment_reads')
       .upsert({ household_id: householdId, user_id: userId, last_read_at: at });
     if (error) wrapError(error, '既読の保存に失敗しました');
+  }
+
+  async setCommentReaction(commentId: UUID, liked: boolean): Promise<void> {
+    const householdId = this.requireHousehold();
+    const userId = await this.requireUser();
+    if (liked) {
+      const { error } = await this.supabase
+        .from('comment_reactions')
+        .upsert({ comment_id: commentId, user_id: userId, household_id: householdId });
+      if (error) wrapError(error, 'いいねの保存に失敗しました');
+      return;
+    }
+    const { error } = await this.supabase
+      .from('comment_reactions')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId);
+    if (error) wrapError(error, 'いいねの取り消しに失敗しました');
   }
 
   async removePartner(userId: UUID, newPassphraseHash: string): Promise<void> {

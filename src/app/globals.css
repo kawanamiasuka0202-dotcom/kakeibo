@@ -82,6 +82,28 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /*
+   * iOS Safari の日付入力は、既定のままだと中の文字が上寄せ・中央寄せになり、
+   * 他の入力欄と枠がずれて見える。他の欄と同じ見た目にそろえる。
+   */
+  input[type='date'] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: flex;
+    align-items: center;
+    text-align: left;
+  }
+
+  input[type='date']::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    margin-left: auto;
+    opacity: 0.6;
+  }
+
   /* iOS Safari が 16px 未満の入力欄でズームするのを防ぐ */
   input,
   select,

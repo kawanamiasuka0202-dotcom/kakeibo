@@ -63,6 +63,15 @@ describe('取引の書き出し', () => {
     expect(lines[2]).toContain('B');
   });
 
+  it('共有の支出は支払った人の欄が「共有」になる', () => {
+    const csv = transactionsToCsv(
+      [transaction({ paidBy: null, shareScope: 'shared', description: '家賃' })],
+      [food],
+      names,
+    );
+    expect(csv.split('\r\n')[1]).toContain('共有');
+  });
+
   it('空配列でもヘッダーだけ出力される', () => {
     expect(transactionsToCsv([], [food], names)).toBe(TRANSACTION_CSV_HEADER.join(','));
   });

@@ -81,6 +81,31 @@ describe('デモデータ', () => {
     expect(snapshot.todos.length).toBeGreaterThan(0);
   });
 
+  it('共有の支出には支払った人を持たせない（個人に加算しないため）', () => {
+    const shared = snapshot.transactions.filter((t) => t.shareScope === 'shared');
+    expect(shared.length).toBeGreaterThan(0);
+    expect(shared.every((t) => t.paidBy === null)).toBe(true);
+  });
+
+  it('個人の支出には支払った人がいる', () => {
+    const personal = snapshot.transactions.filter((t) => t.shareScope === 'personal');
+    expect(personal.length).toBeGreaterThan(0);
+    expect(personal.every((t) => t.paidBy !== null)).toBe(true);
+  });
+
+  it('コメントの返信といいねのサンプルがある', () => {
+    expect(snapshot.comments.some((c) => c.parentId !== null)).toBe(true);
+    expect(snapshot.commentReactions.length).toBeGreaterThan(0);
+  });
+
+  it('返信先といいね先のコメントは実在する', () => {
+    const ids = new Set(snapshot.comments.map((c) => c.id));
+    for (const c of snapshot.comments) {
+      if (c.parentId) expect(ids.has(c.parentId)).toBe(true);
+    }
+    for (const r of snapshot.commentReactions) expect(ids.has(r.commentId)).toBe(true);
+  });
+
   it('同じ日付を渡せば同じ内容になる（再現性）', () => {
     const again = buildDemoSnapshot('2026-08-14');
     expect(again.transactions.length).toBe(snapshot.transactions.length);

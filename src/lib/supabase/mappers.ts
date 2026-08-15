@@ -6,6 +6,7 @@ import type {
   Budget,
   Category,
   Comment,
+  CommentReaction,
   Household,
   Member,
   RecurringRule,
@@ -79,7 +80,8 @@ const fromTransactionRow = (r: Row): Transaction => ({
   categoryId: str(r.category_id),
   description: str(r.description),
   occurredOn: str(r.occurred_on),
-  paidBy: str(r.paid_by),
+  // null は「共有（家計から出したお金）」
+  paidBy: nullableStr(r.paid_by),
   shareScope: r.share_scope === 'personal' ? 'personal' : 'shared',
   paymentMethod: str(r.payment_method, '現金') as Transaction['paymentMethod'],
   memo: str(r.memo),
@@ -99,7 +101,7 @@ const fromRecurringRow = (r: Row): RecurringRule => ({
   amountYen: num(r.amount_yen),
   categoryId: str(r.category_id),
   dayOfMonth: num(r.day_of_month, 1),
-  paidBy: str(r.paid_by),
+  paidBy: nullableStr(r.paid_by),
   shareScope: r.share_scope === 'personal' ? 'personal' : 'shared',
   paymentMethod: str(r.payment_method, '口座振替') as RecurringRule['paymentMethod'],
   memo: str(r.memo),
@@ -145,8 +147,16 @@ const fromCommentRow = (r: Row): Comment => ({
   body: str(r.body),
   linkType: (nullableStr(r.link_type) as Comment['linkType']) ?? null,
   linkId: nullableStr(r.link_id),
+  parentId: nullableStr(r.parent_id),
   createdAt: str(r.created_at),
   updatedAt: str(r.updated_at),
+});
+
+export const fromCommentReactionRow = (r: Row): CommentReaction => ({
+  commentId: str(r.comment_id),
+  userId: str(r.user_id),
+  householdId: str(r.household_id),
+  createdAt: str(r.created_at),
 });
 
 const fromTodoRow = (r: Row): Todo => ({

@@ -12,6 +12,7 @@ import type {
   Budget,
   Category,
   Comment,
+  CommentReaction,
   Household,
   HouseholdSnapshot,
   Member,
@@ -184,7 +185,8 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
           categoryId: cat(name).id,
           description: desc,
           occurredOn: day,
-          paidBy: DEMO_ME_ID,
+          // 共有は「家計から出したお金」なので、個人の支払いにはしない
+          paidBy: null,
           shareScope: 'shared',
           paymentMethod: '口座振替',
           memo: '',
@@ -203,9 +205,10 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
           type: 'income',
           amountYen: 285000,
           categoryId: cat('給与').id,
-          description: '給与',
+          // 共有は誰か個人に紐づけないため、誰の分かは内容に書く
+          description: '給与（あなた）',
           occurredOn: payday,
-          paidBy: DEMO_ME_ID,
+          paidBy: null,
           shareScope: 'shared',
           paymentMethod: '銀行振込',
           memo: '',
@@ -219,9 +222,9 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
           type: 'income',
           amountYen: 178000,
           categoryId: cat('給与').id,
-          description: '給与',
+          description: '給与（パートナー）',
           occurredOn: payday,
-          paidBy: DEMO_PARTNER_ID,
+          paidBy: null,
           shareScope: 'shared',
           paymentMethod: '銀行振込',
           memo: '',
@@ -239,6 +242,7 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
       for (let i = 0; i < count; i++) {
         const name = pick(rng, dailyCategories);
         const who = rng() < 0.55 ? DEMO_ME_ID : DEMO_PARTNER_ID;
+        const isPersonal = name === '美容' || name === '趣味';
         const items = SAMPLE_ITEMS[name] ?? ['支出'];
         addTx(
           {
@@ -247,8 +251,9 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
             categoryId: cat(name).id,
             description: pick(rng, items),
             occurredOn: day,
-            paidBy: who,
-            shareScope: name === '美容' || name === '趣味' ? 'personal' : 'shared',
+            // 個人の支出だけ「誰が払ったか」を持つ
+            paidBy: isPersonal ? who : null,
+            shareScope: isPersonal ? 'personal' : 'shared',
             paymentMethod: pick(rng, ['現金', 'クレジットカード', '電子マネー', 'QRコード決済'] as const),
             memo: '',
             savingsGoalId: null,
@@ -345,7 +350,7 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
       amountYen: 12000,
       categoryId: cat('保険').id,
       dayOfMonth: 27,
-      paidBy: DEMO_PARTNER_ID,
+      paidBy: null,
       shareScope: 'shared',
       paymentMethod: '口座振替',
       memo: '',
@@ -365,8 +370,20 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
       body: '今月ちょっと外食が多いかも。週末は家で作ろう〜',
       linkType: null,
       linkId: null,
+      parentId: null,
       createdAt: new Date(nowMs - 3600 * 1000 * 5).toISOString(),
       updatedAt: new Date(nowMs - 3600 * 1000 * 5).toISOString(),
+    },
+    {
+      id: 'demo-comment-1-reply',
+      householdId: DEMO_HOUSEHOLD_ID,
+      userId: DEMO_ME_ID,
+      body: 'そうだね、土曜はカレー作るよ🍛',
+      linkType: null,
+      linkId: null,
+      parentId: 'demo-comment-1',
+      createdAt: new Date(nowMs - 3600 * 1000 * 4).toISOString(),
+      updatedAt: new Date(nowMs - 3600 * 1000 * 4).toISOString(),
     },
     {
       id: 'demo-comment-2',
@@ -375,6 +392,7 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
       body: '旅行の貯金、今月分入れておいたよ',
       linkType: 'savings_goal',
       linkId: 'demo-goal-1',
+      parentId: null,
       createdAt: new Date(nowMs - 3600 * 1000 * 26).toISOString(),
       updatedAt: new Date(nowMs - 3600 * 1000 * 26).toISOString(),
     },
@@ -385,8 +403,24 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
       body: '電気代、去年より高い気がする。プラン見直す？',
       linkType: null,
       linkId: null,
+      parentId: null,
       createdAt: new Date(nowMs - 3600 * 1000 * 50).toISOString(),
       updatedAt: new Date(nowMs - 3600 * 1000 * 50).toISOString(),
+    },
+  ];
+
+  const commentReactions: CommentReaction[] = [
+    {
+      commentId: 'demo-comment-2',
+      userId: DEMO_PARTNER_ID,
+      householdId: DEMO_HOUSEHOLD_ID,
+      createdAt: new Date(nowMs - 3600 * 1000 * 25).toISOString(),
+    },
+    {
+      commentId: 'demo-comment-1',
+      userId: DEMO_ME_ID,
+      householdId: DEMO_HOUSEHOLD_ID,
+      createdAt: new Date(nowMs - 3600 * 1000 * 4).toISOString(),
     },
   ];
 
@@ -480,6 +514,7 @@ export function buildDemoSnapshot(today: Ymd = todayJst()): HouseholdSnapshot {
     savingsGoals: goals,
     savingsEntries,
     comments,
+    commentReactions,
     todos,
     lastCommentReadAt: new Date(nowMs - 3600 * 1000 * 30).toISOString(),
   };
