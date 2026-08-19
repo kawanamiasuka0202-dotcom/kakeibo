@@ -148,6 +148,8 @@ create policy transactions_select on public.transactions
   for select to authenticated
   using (public.is_household_member(household_id));
 
+-- paid_by が NULL のときは「共有（家計から出したお金）」。
+-- 個人を指定する場合だけ、そのグループのメンバーであることを確かめる。
 drop policy if exists transactions_insert on public.transactions;
 create policy transactions_insert on public.transactions
   for insert to authenticated
@@ -155,9 +157,12 @@ create policy transactions_insert on public.transactions
     public.is_household_member(household_id)
     and created_by = auth.uid()
     and updated_by = auth.uid()
-    and exists (
-      select 1 from public.household_members m
-      where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+    and (
+      transactions.paid_by is null
+      or exists (
+        select 1 from public.household_members m
+        where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+      )
     )
   );
 
@@ -168,9 +173,12 @@ create policy transactions_update on public.transactions
   with check (
     public.is_household_member(household_id)
     and updated_by = auth.uid()
-    and exists (
-      select 1 from public.household_members m
-      where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+    and (
+      transactions.paid_by is null
+      or exists (
+        select 1 from public.household_members m
+        where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+      )
     )
   );
 

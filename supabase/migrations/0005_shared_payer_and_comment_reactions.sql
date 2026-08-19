@@ -15,10 +15,51 @@
 alter table public.transactions    alter column paid_by drop not null;
 alter table public.recurring_rules alter column paid_by drop not null;
 
--- すでに登録済みの「共有」の記録は、個人の支払いから外す。
+-- すでに登録済みの「共有の支出」は、個人の支払いから外す。
 -- （これをしないと、入力した人ひとりに共有支出が積み上がって見えてしまう）
-update public.transactions    set paid_by = null where share_scope = 'shared' and paid_by is not null;
-update public.recurring_rules set paid_by = null where share_scope = 'shared' and paid_by is not null;
+-- 収入は「誰の収入か」を残すため、そのままにする。
+update public.transactions
+set paid_by = null
+where share_scope = 'shared' and type = 'expense' and paid_by is not null;
+
+update public.recurring_rules
+set paid_by = null
+where share_scope = 'shared' and paid_by is not null;
+
+-- 登録・更新の許可条件も、paid_by が空の場合を通すようにそろえる。
+-- （これがないと共有の支出を保存するときに
+--   「new row violates row-level security policy」になる）
+drop policy if exists transactions_insert on public.transactions;
+create policy transactions_insert on public.transactions
+  for insert to authenticated
+  with check (
+    public.is_household_member(household_id)
+    and created_by = auth.uid()
+    and updated_by = auth.uid()
+    and (
+      transactions.paid_by is null
+      or exists (
+        select 1 from public.household_members m
+        where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+      )
+    )
+  );
+
+drop policy if exists transactions_update on public.transactions;
+create policy transactions_update on public.transactions
+  for update to authenticated
+  using (public.is_household_member(household_id))
+  with check (
+    public.is_household_member(household_id)
+    and updated_by = auth.uid()
+    and (
+      transactions.paid_by is null
+      or exists (
+        select 1 from public.household_members m
+        where m.household_id = transactions.household_id and m.user_id = transactions.paid_by
+      )
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- 2-1. コメントの返信
