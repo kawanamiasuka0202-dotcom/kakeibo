@@ -155,7 +155,10 @@ create table if not exists public.budgets (
   household_id uuid not null references public.households (id) on delete cascade,
   -- 月の1日を月キーとして使う（実際の集計期間は households.month_start_day で決まる）
   month date not null,
-  scope text not null check (scope in ('household', 'personal')),
+  -- household = 家計全体（共有＋個人のすべて）
+  -- shared    = 共有だけ（家計から出したお金）
+  -- personal  = その人の個人支出
+  scope text not null check (scope in ('household', 'shared', 'personal')),
   user_id uuid references auth.users (id) on delete cascade,
   category_id uuid references public.categories (id) on delete cascade,
   amount_yen bigint not null check (amount_yen >= 0 and amount_yen <= 1000000000000),
@@ -164,7 +167,8 @@ create table if not exists public.budgets (
   updated_at timestamptz not null default now(),
   constraint budgets_month_is_first_day check (extract(day from month) = 1),
   constraint budgets_scope_user check (
-    (scope = 'household' and user_id is null) or (scope = 'personal' and user_id is not null)
+    (scope in ('household', 'shared') and user_id is null)
+    or (scope = 'personal' and user_id is not null)
   )
 );
 

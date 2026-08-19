@@ -14,7 +14,13 @@ export type ShareScope = 'shared' | 'personal';
 
 export type CategoryKind = 'expense' | 'income';
 
-export type BudgetScope = 'household' | 'personal';
+/**
+ * 予算の対象。
+ *  household = 家計全体（共有＋2人の個人すべて）
+ *  shared    = 共有だけ（家計から出したお金）
+ *  personal  = その人の個人支出
+ */
+export type BudgetScope = 'household' | 'shared' | 'personal';
 
 export type GoalStatus = 'active' | 'paused' | 'done' | 'archived';
 

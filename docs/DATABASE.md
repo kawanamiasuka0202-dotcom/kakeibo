@@ -10,6 +10,7 @@
 | `0003_rls.sql` | アクセス制御（Row Level Security） |
 | `0004_realtime.sql` | リアルタイム更新の対象設定 |
 | `0005_shared_payer_and_comment_reactions.sql` | すでに 0001〜0004 を実行済みのデータベース向けの差分（新規作成時は不要） |
+| `0006_shared_budget.sql` | 予算に「共有」の枠を足す差分（新規作成時は不要） |
 
 ---
 
@@ -82,8 +83,8 @@ households（家計グループ。合言葉の照合用の値を持つ）
 | 列 | 説明 |
 | --- | --- |
 | `month` | 月キー。必ずその月の1日（`2026-08-01`）。実際の集計期間は `month_start_day` で決まる |
-| `scope` | `household`（家計全体）/ `personal`（個人予算） |
-| `user_id` | `personal` のときの対象者。`household` では NULL |
+| `scope` | `household`（家計全体＝共有＋個人）/ `shared`（共有だけ）/ `personal`（個人予算） |
+| `user_id` | `personal` のときの対象者。`household` / `shared` では NULL |
 | `category_id` | NULL なら「全体予算」、値があれば「カテゴリ別予算」 |
 | `amount_yen` | bigint（円単位の整数、0以上） |
 

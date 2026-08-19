@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, CalendarClock, CheckCircle2, MessageSquare, PiggyBank } from 'lucide-react';
 import { useHousehold } from '@/components/app-provider';
 import { BudgetAlert, MonthSwitcher, PageHeader, StatRow, ViewerSwitch } from '@/components/common';
-import { ChartLegend, DonutChart, type Segment } from '@/components/charts';
+import { BudgetBar, ChartLegend, DonutChart, type Segment } from '@/components/charts';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, EmptyState, Progress } from '@/components/ui/misc';
@@ -272,8 +272,7 @@ export default function HomePage() {
 
         {viewer === 'shared' ? (
           <p className="mt-2 text-xs text-muted">
-            家計から出したお金だけの金額です。2人それぞれの個人支出は含みません
-            （予算は全体予算と比べています）。
+            家計から出したお金だけの金額です。2人それぞれの個人支出は含みません。
           </p>
         ) : null}
 
@@ -285,11 +284,12 @@ export default function HomePage() {
         </div>
 
         {summary.hasBudget ? (
-          <div className="mt-3 space-y-1.5">
-            <Progress
-              value={clampPercent(summary.usageRate)}
-              tone={summary.level === 'over' ? 'danger' : summary.level === 'warn' ? 'warn' : 'primary'}
-              label={`予算の使用率 ${summary.usageRate}%`}
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+            <BudgetBar
+              label={`${viewerLabel}の使用状況`}
+              spentYen={summary.spentYen}
+              budgetYen={summary.budgetYen}
+              paceRatio={summary.period.days > 0 ? summary.elapsedDays / summary.period.days : 0}
             />
             <p className="text-xs text-muted">
               {summary.level === 'over'

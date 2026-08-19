@@ -64,7 +64,8 @@ const fromBudgetRow = (r: Row): Budget => ({
   id: str(r.id),
   householdId: str(r.household_id),
   month: str(r.month),
-  scope: r.scope === 'personal' ? 'personal' : 'household',
+  scope:
+    r.scope === 'personal' ? 'personal' : r.scope === 'shared' ? 'shared' : 'household',
   userId: nullableStr(r.user_id),
   categoryId: nullableStr(r.category_id),
   amountYen: num(r.amount_yen),

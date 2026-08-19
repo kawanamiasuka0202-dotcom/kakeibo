@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { formatYen, formatYenCompact, shareRate } from '@/lib/money';
+import { clampPercent, formatYen, formatYenCompact, shareRate } from '@/lib/money';
 import { cn } from '@/lib/utils';
 
 export interface Segment {
@@ -147,6 +147,107 @@ export function ChartLegend({
         </li>
       ) : null}
     </ul>
+  );
+}
+
+/**
+ * 予算に対する使用状況を表す横向きの棒グラフ。
+ * 予算を超えた分は色を変えて別に描き、どれだけ出たかを一目で分かるようにする。
+ * 数字が読めれば分かるよう、金額と割合は必ず文字でも出す。
+ */
+export function BudgetBar({
+  label,
+  spentYen,
+  budgetYen,
+  /** 今日までに経過した割合（0〜1）。日割りペースの目印を出す */
+  paceRatio,
+  icon,
+  color,
+  className,
+}: {
+  label: string;
+  spentYen: number;
+  budgetYen: number;
+  paceRatio?: number;
+  icon?: string;
+  color?: string;
+  className?: string;
+}) {
+  const hasBudget = budgetYen > 0;
+  const rate = hasBudget ? (spentYen / budgetYen) * 100 : 0;
+  const overYen = Math.max(0, spentYen - budgetYen);
+  const isOver = overYen > 0;
+  const rest = budgetYen - spentYen;
+
+  // 超過したときは「予算ぶん」と「超過ぶん」の比率で1本のバーを分ける
+  const budgetWidth = isOver ? (budgetYen / spentYen) * 100 : clampPercent(rate);
+  const overWidth = isOver ? 100 - budgetWidth : 0;
+
+  const tone = isOver ? 'var(--color-danger)' : rate >= 80 ? 'var(--color-warn)' : (color ?? 'var(--color-primary)');
+
+  return (
+    <div className={cn('w-full min-w-0', className)}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate text-sm font-semibold">
+          {icon ? <span className="mr-1">{icon}</span> : null}
+          {label}
+        </span>
+        <span className="tabular shrink-0 text-sm">
+          <span className="font-bold">{formatYen(spentYen)}</span>
+          {hasBudget ? <span className="text-muted"> / {formatYen(budgetYen)}</span> : null}
+        </span>
+      </div>
+
+      <div
+        className="relative mt-1.5 h-3 w-full overflow-hidden rounded-full bg-surface-muted"
+        role="img"
+        aria-label={
+          hasBudget
+            ? `${label} 予算${formatYen(budgetYen)}のうち${formatYen(spentYen)}を使用。${Math.round(rate * 10) / 10}パーセント`
+            : `${label} ${formatYen(spentYen)}を使用。予算は未設定`
+        }
+      >
+        <div className="flex h-full w-full">
+          <div
+            className="h-full transition-all"
+            style={{ width: `${budgetWidth}%`, backgroundColor: tone }}
+          />
+          {isOver ? (
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${overWidth}%`,
+                backgroundColor: 'var(--color-danger)',
+                // 超過部分は斜線を重ねて、予算内との違いを色以外でも示す
+                backgroundImage:
+                  'repeating-linear-gradient(45deg, rgba(255,255,255,.45) 0 3px, transparent 3px 6px)',
+              }}
+            />
+          ) : null}
+        </div>
+
+        {paceRatio !== undefined && hasBudget && !isOver ? (
+          <span
+            aria-hidden
+            className="absolute top-0 h-full w-px bg-foreground/40"
+            style={{ left: `${clampPercent(paceRatio * 100)}%` }}
+          />
+        ) : null}
+      </div>
+
+      <p className="mt-1 text-xs text-muted">
+        {!hasBudget ? (
+          '予算は未設定です'
+        ) : isOver ? (
+          <span className="font-bold text-danger">{formatYen(overYen)} 超過しています</span>
+        ) : (
+          <>
+            残り <span className="font-semibold text-foreground">{formatYen(rest)}</span>（
+            {Math.round(rate * 10) / 10}% 使用）
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 

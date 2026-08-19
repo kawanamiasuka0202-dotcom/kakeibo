@@ -404,8 +404,55 @@ describe('全体予算の取り出し', () => {
     expect(findTotalBudget(budgets, AUGUST, 'partner', ME, PARTNER)?.amountYen).toBe(35000);
   });
 
-  it('「共有」は全体予算を使う（共有専用の予算は設けていない）', () => {
-    expect(findTotalBudget(budgets, AUGUST, 'shared', ME, PARTNER)?.amountYen).toBe(200000);
+  it('「共有」は共有予算を使う', () => {
+    const withShared = [...budgets, budget({ scope: 'shared', amountYen: 150000 })];
+    expect(findTotalBudget(withShared, AUGUST, 'shared', ME, PARTNER)?.amountYen).toBe(150000);
+  });
+
+  it('共有予算が未設定なら「共有」は予算なしとして扱う（全体予算で代用しない）', () => {
+    expect(findTotalBudget(budgets, AUGUST, 'shared', ME, PARTNER)).toBeNull();
+  });
+
+  it('共有予算は全体予算・個人予算と混ざらない', () => {
+    const withShared = [...budgets, budget({ scope: 'shared', amountYen: 150000 })];
+    expect(findTotalBudget(withShared, AUGUST, 'all')?.amountYen).toBe(200000);
+    expect(findTotalBudget(withShared, AUGUST, 'me', ME, PARTNER)?.amountYen).toBe(40000);
+  });
+});
+
+describe('共有予算の集計', () => {
+  it('共有の支出だけが共有予算に対して計上される', () => {
+    const transactions = [
+      transaction({ occurredOn: '2026-08-02', amountYen: 92000, paidBy: null, shareScope: 'shared' }),
+      transaction({ occurredOn: '2026-08-03', amountYen: 5000, paidBy: ME, shareScope: 'personal' }),
+    ];
+    const summary = buildMonthlySummary({
+      transactions,
+      budgets: [budget({ scope: 'shared', amountYen: 120000 })],
+      key: AUGUST,
+      monthStartDay: 1,
+      carryoverEnabled: false,
+      today: TODAY,
+      viewer: 'shared',
+      meId: ME,
+      partnerId: PARTNER,
+    });
+    expect(summary.budgetYen).toBe(120000);
+    expect(summary.spentYen).toBe(92000);
+    expect(summary.remainingYen).toBe(28000);
+  });
+
+  it('経過日数を返す（横グラフのペース表示に使う）', () => {
+    const summary = buildMonthlySummary({
+      transactions: [],
+      budgets: [budget({ amountYen: 100000 })],
+      key: AUGUST,
+      monthStartDay: 1,
+      carryoverEnabled: false,
+      today: TODAY,
+    });
+    expect(summary.elapsedDays).toBe(14);
+    expect(summary.period.days).toBe(31);
   });
 });
 
