@@ -7,30 +7,45 @@ import { BudgetBar } from '@/components/charts';
 import { MonthSwitcher, PageHeader } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/field';
-import { Progress } from '@/components/ui/misc';
+import { Input, Select } from '@/components/ui/field';
 import { useToast } from '@/components/ui/toast';
 import {
   applyFilter,
   budgetsOfMonth,
+  budgetTargetOf,
   buildMonthlySummary,
   categoryBudgetMap,
   inPeriod,
   totalExpense,
 } from '@/lib/budget';
 import { monthKeyLabel, monthKeyToDbDate, monthPeriod } from '@/lib/date';
-import { clampPercent, formatYen, formatYenText, parseYen, remaining, usageRate } from '@/lib/money';
+import { formatYen, formatYenText, parseYen, remaining, usageRate } from '@/lib/money';
 import { validateBudgetAmount } from '@/lib/validation';
-import type { BudgetScope } from '@/lib/types';
+import type { BudgetScope, ViewerFilter } from '@/lib/types';
 
 export default function BudgetPage() {
   const { data, me, partner, isShared, monthKey, setMonthKey, today, backend, run, busy } = useHousehold();
   const { household, budgets, categories, transactions } = data;
   const toast = useToast();
 
+  // 右上で「どの予算を見るか」を切り替える
+  const [viewer, setViewer] = React.useState<ViewerFilter>('all');
+  const target = budgetTargetOf(viewer, me.id, partner?.userId ?? null);
+
   const month = monthKeyToDbDate(monthKey);
   const period = monthPeriod(monthKey, household.monthStartDay);
   const periodTransactions = React.useMemo(() => inPeriod(transactions, period), [transactions, period]);
+
+  // 選んでいる対象の支出だけを見る
+  const scopedTransactions = React.useMemo(
+    () =>
+      applyFilter(periodTransactions, {
+        viewer,
+        meId: me.id,
+        partnerId: partner?.userId ?? null,
+      }).filter((t) => t.type === 'expense'),
+    [periodTransactions, viewer, me.id, partner],
+  );
 
   const summary = buildMonthlySummary({
     transactions,
@@ -39,13 +54,16 @@ export default function BudgetPage() {
     monthStartDay: household.monthStartDay,
     carryoverEnabled: household.carryoverEnabled,
     today,
-    viewer: 'all',
+    viewer,
     meId: me.id,
     partnerId: partner?.userId ?? null,
   });
 
   const monthBudgets = budgetsOfMonth(budgets, monthKey);
-  const catBudgets = categoryBudgetMap(budgets, monthKey);
+  const catBudgets = React.useMemo(
+    () => categoryBudgetMap(budgets, monthKey, target.scope, target.userId),
+    [budgets, monthKey, target.scope, target.userId],
+  );
 
   const saveBudget = React.useCallback(
     async (params: { scope: BudgetScope; userId: string | null; categoryId: string | null; amount: number | null }) => {
@@ -92,29 +110,10 @@ export default function BudgetPage() {
     }
   };
 
-  const totalBudget = monthBudgets.find((b) => b.scope === 'household' && b.categoryId === null);
-  const sharedBudget = monthBudgets.find((b) => b.scope === 'shared' && b.categoryId === null);
-  const personalBudget = (userId: string) =>
-    monthBudgets.find((b) => b.scope === 'personal' && b.userId === userId && b.categoryId === null);
-
-  const categoryTotal = [...catBudgets.values()].reduce((s, v) => s + v, 0);
-
-  // 共有＝支払った人がいない支出。個人＝その人が払った支出。
-  const sharedSpent = totalExpense(
-    applyFilter(periodTransactions, { viewer: 'shared', meId: me.id, partnerId: partner?.userId ?? null }),
+  const totalBudget = monthBudgets.find(
+    (b) => b.scope === target.scope && b.userId === target.userId && b.categoryId === null,
   );
-  const personalSpent = (userId: string) =>
-    totalExpense(
-      applyFilter(periodTransactions, {
-        viewer: userId === me.id ? 'me' : 'partner',
-        meId: me.id,
-        partnerId: partner?.userId ?? null,
-      }),
-    );
-
-  const sharedPlusPersonal =
-    (sharedBudget?.amountYen ?? 0) +
-    data.members.reduce((sum, m) => sum + (personalBudget(m.userId)?.amountYen ?? 0), 0);
+  const categoryTotal = [...catBudgets.values()].reduce((s, v) => s + v, 0);
 
   // 日割りのペース（今日までに経過した割合）
   const paceRatio = period.days > 0 ? summary.elapsedDays / period.days : 0;
@@ -123,9 +122,52 @@ export default function BudgetPage() {
     .filter((c) => c.kind === 'expense' && (!c.isHidden || catBudgets.has(c.id)))
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
+  const VIEWER_LABEL: Record<ViewerFilter, string> = {
+    all: '家計全体',
+    shared: '共有（家計から）',
+    me: `${me.displayName}（自分）`,
+    partner: partner?.displayName ?? 'パートナー',
+  };
+  const scopeLabel = VIEWER_LABEL[viewer];
+
+  const SCOPE_NOTE: Record<ViewerFilter, string> = {
+    all: '共有と、2人それぞれの個人支出をすべて合わせた予算です。',
+    shared: '家計から出したお金の予算です。個人の支出は含みません。',
+    me: '自分が個人で払った分の予算です。',
+    partner: `${partner?.displayName ?? 'パートナー'}が個人で払った分の予算です。`,
+  };
+
+  // カテゴリ別の使用状況（金額の大きい順。予算があるものは必ず出す）
+  const categoryRows = expenseCategories
+    .map((category) => ({
+      category,
+      budgetYen: catBudgets.get(category.id) ?? null,
+      spentYen: totalExpense(scopedTransactions.filter((t) => t.categoryId === category.id)),
+    }))
+    .filter((r) => r.budgetYen !== null || r.spentYen > 0);
+
   return (
     <div className="space-y-4">
-      <PageHeader title="予算管理" subtitle={`${period.start} 〜 ${period.end}`} back="/home" />
+      <PageHeader
+        title="予算管理"
+        subtitle={`${period.start} 〜 ${period.end}`}
+        back="/home"
+        action={
+          isShared ? (
+            <Select
+              value={viewer}
+              onChange={(e) => setViewer(e.target.value as ViewerFilter)}
+              aria-label="表示する予算"
+              className="h-10 w-36 py-1 text-sm"
+            >
+              <option value="all">家計全体</option>
+              <option value="shared">共有</option>
+              <option value="me">自分</option>
+              <option value="partner">{partner?.displayName ?? 'パートナー'}</option>
+            </Select>
+          ) : null
+        }
+      />
 
       <MonthSwitcher
         monthKey={monthKey}
@@ -141,159 +183,108 @@ export default function BudgetPage() {
         </Button>
       </div>
 
-      {/* 使用状況のまとめ（横グラフ） */}
+      {/* 合計予算 */}
       <Card>
         <CardHeader>
-          <CardTitle>{monthKeyLabel(monthKey)}の使用状況</CardTitle>
+          <CardTitle>
+            {monthKeyLabel(monthKey)}の{scopeLabel}
+          </CardTitle>
         </CardHeader>
-        <div className="space-y-4">
-          <BudgetBar
-            label="家計全体"
-            spentYen={summary.spentYen}
-            budgetYen={summary.budgetYen}
-            paceRatio={paceRatio}
-          />
-          {isShared ? (
-            <>
-              <BudgetBar
-                label="共有（家計から）"
-                spentYen={sharedSpent}
-                budgetYen={sharedBudget?.amountYen ?? 0}
-                paceRatio={paceRatio}
-              />
-              {data.members.map((member) => (
-                <BudgetBar
-                  key={member.userId}
-                  label={`${member.displayName}${member.userId === me.id ? '（自分）' : ''}の個人`}
-                  spentYen={personalSpent(member.userId)}
-                  budgetYen={personalBudget(member.userId)?.amountYen ?? 0}
-                  paceRatio={paceRatio}
-                />
-              ))}
-            </>
-          ) : null}
-        </div>
-        <p className="mt-3 text-xs text-muted">
-          細い縦線は、今日までの日割りのペースです。線より右まで伸びていれば、使うのが早めということです。
-        </p>
-      </Card>
 
-      {/* 全体予算 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>全体予算</CardTitle>
-        </CardHeader>
-        <BudgetInput
-          label="家計全体"
-          value={totalBudget?.amountYen ?? null}
-          onSave={(amount) => saveBudget({ scope: 'household', userId: null, categoryId: null, amount })}
-          disabled={busy}
+        <BudgetBar
+          label="合計"
+          spentYen={summary.spentYen}
+          budgetYen={summary.budgetYen}
+          paceRatio={paceRatio}
         />
-        <p className="mt-2 text-xs text-muted">
-          共有と、2人それぞれの個人支出を合わせた全体の予算です。
+
+        <div className="mt-4 border-t border-border pt-4">
+          <BudgetInput
+            label="合計の予算"
+            value={totalBudget?.amountYen ?? null}
+            onSave={(amount) =>
+              saveBudget({ scope: target.scope, userId: target.userId, categoryId: null, amount })
+            }
+            disabled={busy}
+          />
+          <p className="mt-2 text-xs text-muted">{SCOPE_NOTE[viewer]}</p>
+        </div>
+
+        <p className="mt-3 text-xs text-muted">
+          横グラフの細い縦線は、今日までの日割りのペースです。線より右まで伸びていれば、使うのが早めということです。
         </p>
       </Card>
-
-      {/* 共有予算・個人予算 */}
-      {isShared ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>共有・個人の予算</CardTitle>
-          </CardHeader>
-          <div className="space-y-4">
-            <div>
-              <BudgetInput
-                label="共有（家計から）"
-                value={sharedBudget?.amountYen ?? null}
-                onSave={(amount) => saveBudget({ scope: 'shared', userId: null, categoryId: null, amount })}
-                disabled={busy}
-              />
-              <p className="mt-1.5 text-xs text-muted">
-                家計から出したお金の予算です。個人の支出は含みません。
-              </p>
-            </div>
-
-            {data.members.map((member) => {
-              const row = personalBudget(member.userId);
-              const spent = personalSpent(member.userId);
-              const rest = remaining(row?.amountYen ?? 0, spent);
-              return (
-                <div key={member.userId}>
-                  <BudgetInput
-                    label={`${member.displayName}${member.userId === me.id ? '（自分）' : ''}`}
-                    value={row?.amountYen ?? null}
-                    onSave={(amount) =>
-                      saveBudget({ scope: 'personal', userId: member.userId, categoryId: null, amount })
-                    }
-                    disabled={busy}
-                  />
-                  {row ? (
-                    <p className="mt-1.5 text-xs text-muted">
-                      使用 {formatYen(spent)}・残り{' '}
-                      <span className={rest < 0 ? 'font-bold text-danger' : ''}>{formatYen(rest)}</span>（
-                      {usageRate(spent, row.amountYen)}%）
-                    </p>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-
-          {totalBudget && sharedPlusPersonal > totalBudget.amountYen ? (
-            <p className="mt-3 flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm text-warn">
-              <Info className="mt-0.5 size-4 shrink-0" />
-              共有と個人の予算の合計が、全体予算を
-              {formatYenText(sharedPlusPersonal - totalBudget.amountYen)}上回っています。
-            </p>
-          ) : null}
-        </Card>
-      ) : null}
 
       {/* カテゴリ別予算 */}
       <Card>
         <CardHeader>
-          <CardTitle>カテゴリ別予算</CardTitle>
+          <CardTitle>カテゴリ別予算（{scopeLabel}）</CardTitle>
           <span className="tabular text-sm text-muted">合計 {formatYen(categoryTotal)}</span>
         </CardHeader>
 
         {totalBudget && categoryTotal > totalBudget.amountYen ? (
           <p className="mb-3 flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm text-warn">
             <Info className="mt-0.5 size-4 shrink-0" />
-            カテゴリ別予算の合計が全体予算を{formatYenText(categoryTotal - totalBudget.amountYen)}
-            上回っています。
+            カテゴリ別予算の合計が、{scopeLabel}の合計予算を
+            {formatYenText(categoryTotal - totalBudget.amountYen)}上回っています。
           </p>
         ) : null}
 
+        {categoryRows.length === 0 ? (
+          <p className="py-2 text-sm text-muted">
+            この対象のカテゴリ別予算・支出はまだありません。下の一覧から金額を入れると設定できます。
+          </p>
+        ) : (
+          <ul className="space-y-4">
+            {categoryRows.map(({ category, budgetYen, spentYen }) => (
+              <li key={category.id}>
+                <BudgetBar
+                  label={category.name}
+                  icon={category.icon}
+                  spentYen={spentYen}
+                  budgetYen={budgetYen ?? 0}
+                  paceRatio={paceRatio}
+                  color={category.color}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* カテゴリ別予算の入力 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>カテゴリ別予算を決める</CardTitle>
+        </CardHeader>
         <ul className="space-y-4">
           {expenseCategories.map((category) => {
             const budgetYen = catBudgets.get(category.id) ?? null;
-            const spent = totalExpense(periodTransactions.filter((t) => t.categoryId === category.id));
+            const spent = totalExpense(scopedTransactions.filter((t) => t.categoryId === category.id));
             const rest = budgetYen === null ? null : remaining(budgetYen, spent);
-            const rate = budgetYen === null ? 0 : usageRate(spent, budgetYen);
             return (
               <li key={category.id}>
                 <BudgetInput
                   label={`${category.icon} ${category.name}`}
                   value={budgetYen}
                   onSave={(amount) =>
-                    saveBudget({ scope: 'household', userId: null, categoryId: category.id, amount })
+                    saveBudget({
+                      scope: target.scope,
+                      userId: target.userId,
+                      categoryId: category.id,
+                      amount,
+                    })
                   }
                   disabled={busy}
                 />
                 {budgetYen !== null ? (
-                  <div className="mt-1.5 space-y-1">
-                    <Progress
-                      value={clampPercent(rate)}
-                      tone={rate >= 100 ? 'danger' : rate >= 80 ? 'warn' : 'primary'}
-                    />
-                    <p className="text-xs text-muted">
-                      使用 {formatYen(spent)}・残り{' '}
-                      <span className={(rest ?? 0) < 0 ? 'font-bold text-danger' : ''}>
-                        {formatYen(rest ?? 0)}
-                      </span>
-                      （{rate}%）
-                    </p>
-                  </div>
+                  <p className="mt-1.5 text-xs text-muted">
+                    使用 {formatYen(spent)}・残り{' '}
+                    <span className={(rest ?? 0) < 0 ? 'font-bold text-danger' : ''}>
+                      {formatYen(rest ?? 0)}
+                    </span>
+                    （{usageRate(spent, budgetYen)}%）
+                  </p>
                 ) : spent > 0 ? (
                   <p className="mt-1.5 text-xs text-muted">使用 {formatYen(spent)}（予算未設定）</p>
                 ) : null}

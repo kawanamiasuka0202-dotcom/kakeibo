@@ -11,6 +11,7 @@ import {
 import { remaining, shareRate, sumYen, usageRate, type Yen } from './money';
 import type {
   Budget,
+  BudgetScope,
   Category,
   ShareScope,
   Transaction,
@@ -128,13 +129,37 @@ export function findTotalBudget(
 /** 支払者別の内訳で「共有（家計から）」を表すための ID */
 export const SHARED_PAYER_ID = '__shared__';
 
-/** カテゴリ別予算（世帯スコープのみ）を Map で返す。 */
-export function categoryBudgetMap(budgets: readonly Budget[], key: MonthKey): Map<UUID, Yen> {
+/**
+ * カテゴリ別予算を Map で返す。
+ * 対象（全体／共有／個人）ごとに別々の予算を持てる。
+ */
+export function categoryBudgetMap(
+  budgets: readonly Budget[],
+  key: MonthKey,
+  scope: BudgetScope = 'household',
+  userId: UUID | null = null,
+): Map<UUID, Yen> {
   const map = new Map<UUID, Yen>();
   for (const b of budgetsOfMonth(budgets, key)) {
-    if (b.scope === 'household' && b.categoryId) map.set(b.categoryId, b.amountYen);
+    if (b.scope !== scope || !b.categoryId) continue;
+    if (scope === 'personal' && b.userId !== userId) continue;
+    map.set(b.categoryId, b.amountYen);
   }
   return map;
+}
+
+/**
+ * 表示対象（ViewerFilter）に対応する予算の置き場所を返す。
+ * 画面の切り替えと、予算の保存先を1か所で結び付けるための対応表。
+ */
+export function budgetTargetOf(
+  viewer: ViewerFilter,
+  meId?: UUID,
+  partnerId?: UUID | null,
+): { scope: BudgetScope; userId: UUID | null } {
+  if (viewer === 'all') return { scope: 'household', userId: null };
+  if (viewer === 'shared') return { scope: 'shared', userId: null };
+  return { scope: 'personal', userId: (viewer === 'me' ? meId : partnerId) ?? null };
 }
 
 /**

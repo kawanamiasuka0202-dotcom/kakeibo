@@ -12,6 +12,7 @@ import { Badge, EmptyState, Progress } from '@/components/ui/misc';
 import {
   applyFilter,
   buildMonthlySummary,
+  budgetTargetOf,
   categoryBreakdown,
   categoryBudgetMap,
   inPeriod,
@@ -70,10 +71,15 @@ export default function HomePage() {
     [transactions, summary.period, viewer, me.id, partner],
   );
 
-  const catRows = React.useMemo(
-    () => categoryBreakdown(periodTransactions.filter((t) => t.type === 'expense'), categories, categoryBudgetMap(budgets, monthKey)),
-    [periodTransactions, categories, budgets, monthKey],
-  );
+  // カテゴリ別予算も、選んでいる対象（全体／共有／個人）のものを使う
+  const catRows = React.useMemo(() => {
+    const target = budgetTargetOf(viewer, me.id, partner?.userId ?? null);
+    return categoryBreakdown(
+      periodTransactions.filter((t) => t.type === 'expense'),
+      categories,
+      categoryBudgetMap(budgets, monthKey, target.scope, target.userId),
+    );
+  }, [periodTransactions, categories, budgets, monthKey, viewer, me.id, partner]);
 
   const categorySegments: Segment[] = catRows
     .filter((r) => r.amountYen > 0)

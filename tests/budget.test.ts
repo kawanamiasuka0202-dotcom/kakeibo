@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyFilter,
+  budgetTargetOf,
   buildMonthlySummary,
   carryoverAmount,
   categoryBreakdown,
@@ -304,6 +305,29 @@ describe('内訳', () => {
     expect(foodRow?.remainingYen).toBe(-5000);
   });
 
+  it('カテゴリ別予算は対象（全体／共有／個人）ごとに分かれている', () => {
+    const budgets = [
+      budget({ scope: 'household', categoryId: food.id, amountYen: 60000 }),
+      budget({ scope: 'shared', categoryId: food.id, amountYen: 40000 }),
+      budget({ scope: 'personal', userId: ME, categoryId: food.id, amountYen: 10000 }),
+      budget({ scope: 'personal', userId: PARTNER, categoryId: food.id, amountYen: 8000 }),
+    ];
+    expect(categoryBudgetMap(budgets, AUGUST, 'household').get(food.id)).toBe(60000);
+    expect(categoryBudgetMap(budgets, AUGUST, 'shared').get(food.id)).toBe(40000);
+    expect(categoryBudgetMap(budgets, AUGUST, 'personal', ME).get(food.id)).toBe(10000);
+    expect(categoryBudgetMap(budgets, AUGUST, 'personal', PARTNER).get(food.id)).toBe(8000);
+  });
+
+  it('別の人の個人カテゴリ予算は混ざらない', () => {
+    const budgets = [budget({ scope: 'personal', userId: PARTNER, categoryId: food.id, amountYen: 8000 })];
+    expect(categoryBudgetMap(budgets, AUGUST, 'personal', ME).has(food.id)).toBe(false);
+  });
+
+  it('合計の予算（categoryId が null）はカテゴリ別に混ざらない', () => {
+    const budgets = [budget({ scope: 'shared', categoryId: null, amountYen: 150000 })];
+    expect(categoryBudgetMap(budgets, AUGUST, 'shared').size).toBe(0);
+  });
+
   it('支払者別の内訳を計算する', () => {
     const members = [
       { userId: ME, displayName: 'わたし' },
@@ -348,6 +372,19 @@ describe('内訳', () => {
     expect(totalExpense(withIncome)).toBe(100000);
     expect(totalIncome(withIncome)).toBe(500000);
     expect(categoryBreakdown(withIncome, categories)).toHaveLength(2);
+  });
+});
+
+describe('表示対象と予算の対応', () => {
+  it('画面の切り替えが、予算の置き場所と一致する', () => {
+    expect(budgetTargetOf('all', ME, PARTNER)).toEqual({ scope: 'household', userId: null });
+    expect(budgetTargetOf('shared', ME, PARTNER)).toEqual({ scope: 'shared', userId: null });
+    expect(budgetTargetOf('me', ME, PARTNER)).toEqual({ scope: 'personal', userId: ME });
+    expect(budgetTargetOf('partner', ME, PARTNER)).toEqual({ scope: 'personal', userId: PARTNER });
+  });
+
+  it('パートナーがいない場合は userId が null になる', () => {
+    expect(budgetTargetOf('partner', ME, null)).toEqual({ scope: 'personal', userId: null });
   });
 });
 

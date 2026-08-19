@@ -85,7 +85,10 @@ households（家計グループ。合言葉の照合用の値を持つ）
 | `month` | 月キー。必ずその月の1日（`2026-08-01`）。実際の集計期間は `month_start_day` で決まる |
 | `scope` | `household`（家計全体＝共有＋個人）/ `shared`（共有だけ）/ `personal`（個人予算） |
 | `user_id` | `personal` のときの対象者。`household` / `shared` では NULL |
-| `category_id` | NULL なら「全体予算」、値があれば「カテゴリ別予算」 |
+| `category_id` | NULL なら「合計の予算」、値があれば「カテゴリ別予算」 |
+
+`scope` × `user_id` × `category_id` の組み合わせで1件ずつ持てるため、
+「共有の食費」「自分の食費」のように、対象ごとに別々のカテゴリ別予算を設定できます。
 | `amount_yen` | bigint（円単位の整数、0以上） |
 
 `budgets_unique_idx` により、同じ月・同じ対象の予算は1件だけです（`COALESCE` を使い NULL 同士も重複扱い）。
